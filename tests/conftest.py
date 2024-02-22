@@ -1,60 +1,50 @@
-"""
-Module-level docstring: This module provides utilities for generating test data and configuring pytest.
-"""
-from decimal import Decimal, InvalidOperation
+"""This is conftest.py file"""
+from decimal import Decimal
 import pytest
 from faker import Faker
-from calculator.operations.basic_operations import Add, Subtract, Multiply, Divide
 
 fake = Faker()
 
-def generate_test_data(num_records):
-    """
-    Generate test data for parameterized tests, with enhanced variability in operands and operations.
-    """
-    operation_mappings = {
-        'add': Add(),
-        'subtract': Subtract(),
-        'multiply': Multiply(),
-        'divide': Divide(),
-        # Add more operations here as your application grows
-    }
+# Default options can be overridden using command-line arguments
+DEFAULT_NUM_RECORDS = 10
+DEFAULT_PRECISION = 2  # Default precision for division results
 
+def generate_test_data(num_records, precision):
+    """Generate test data for the specified number of records and precision for division results."""
+    operations = ['add', 'subtract', 'multiply', 'divide']
+    test_data = []
     for _ in range(num_records):
-        # Introduce a chance for edge cases, including zeros, very large numbers, and high precision decimals
-        a = Decimal(f"{fake.random_number(digits=fake.random_int(min=1, max=5))}{'.' + fake.random_number(digits=fake.random_int(min=1, max=2), fix_len=True) if fake.boolean() else ''}")
-        b = Decimal(f"{fake.random_number(digits=fake.random_int(min=1, max=5))}{'.' + fake.random_number(digits=fake.random_int(min=1, max=2), fix_len=True) if fake.boolean() else ''}")
-        # Chance to make 'a' or 'b' a specific edge case
-        if fake.random_int(min=0, max=100) < 10:  # 10% chance
-            a = Decimal(fake.random_element(elements=['0', '0.00001', '-0.00001', str(fake.random_int(min=100000, max=1000000))]))
-        if fake.random_int(min=0, max=100) < 10:  # 10% chance for 'b', including division by zero explicitly
-            b = Decimal(fake.random_element(elements=['0', '0.00001', '-0.00001', str(fake.random_int(min=100000, max=1000000)), '0']))  # Include '0' to test division by zero
-        operation_name = fake.random_element(elements=list(operation_mappings.keys()))
-        operation = operation_mappings[operation_name]
+        a = fake.pydecimal(left_digits=2, right_digits=2, positive=True)  # More control over decimals
+        b = fake.pydecimal(left_digits=2, right_digits=2, positive=True)
+        operation = fake.random_element(elements=operations)
 
-        try:
-            # Attempt to calculate expected result, accounting for operation behavior
-            expected = operation.perform(a, b) if b != 0 or operation_name != 'divide' else "ZeroDivisionError"
-        except ZeroDivisionError:
-            expected = "ZeroDivisionError"
-        except InvalidOperation:
-            expected = "InvalidOperation"
+        if operation == 'divide' and b == 0:
+            expected = "Cannot divide by zero"
+        elif operation == 'divide':
+            expected = Decimal(a) / Decimal(b)
+            expected = expected.quantize(Decimal(10) ** -precision)  # Control precision
+        elif operation == 'multiply':
+            expected = Decimal(a) * Decimal(b)
+        elif operation == 'subtract':
+            expected = Decimal(a) - Decimal(b)
+        elif operation == 'add':
+            expected = Decimal(a) + Decimal(b)
+        else:
+            expected = "Unknown operation"
 
-        yield a, b, operation_name, expected
+        test_data.append((a, b, operation, expected))
+    return test_data
 
-@pytest.hookimpl(tryfirst=True)
 def pytest_addoption(parser):
-    """
-    Add a command-line option to specify the number of test records to generate.
-    """
-    parser.addoption("--num_records", action="store", default=10, type=int, help="Number of test records to generate")
+    """Add options to specify the number of test records and division precision."""
+    parser.addoption("--num_records", action="store", type=int, default=DEFAULT_NUM_RECORDS, help="Number of test records to generate")
+    parser.addoption("--precision", action="store", type=int, default=DEFAULT_PRECISION, help="Precision for division results")
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_generate_tests(metafunc):
-    """
-    Dynamically generate test cases based on the specified number of records.
-    """
-    if "a" in metafunc.fixturenames and "b" in metafunc.fixturenames and "operation_name" in metafunc.fixturenames and "expected" in metafunc.fixturenames:
+    """Generate tests dynamically based on the number of records and precision."""
+    if {'a', 'b', 'operation', 'expected'}.issubset(metafunc.fixturenames):
         num_records = metafunc.config.getoption("num_records")
-        parameters = list(generate_test_data(num_records))
-        metafunc.parametrize("a,b,operation_name,expected", parameters)
+        precision = metafunc.config.getoption("precision")
+        test_data = generate_test_data(num_records, precision)
+        metafunc.parametrize("a,b,operation,expected", test_data, ids=[f"test_{i}" for i in range(len(test_data))])

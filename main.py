@@ -1,66 +1,63 @@
 from decimal import Decimal, InvalidOperation
 from calculator.services.calculator_service import CalculatorService
 from calculator.operations.basic_operations import Add, Subtract, Multiply, Divide
-import re
 
-def calculate_and_print(a, b, operation_input):
-    # Enhanced mapping to support both symbols and text for operations
-    operation_mappings = {
-        '+': Add(),
-        'add': Add(),
-        '-': Subtract(),
-        'subtract': Subtract(),
-        '*': Multiply(),
-        'multiply': Multiply(),
-        '/': Divide(),
-        'divide': Divide()
-    }
+# Assuming these operation classes are defined and implement a method called `perform`
+operation_mappings = {
+    'add': Add(),
+    'subtract': Subtract(),
+    'multiply': Multiply(),
+    'divide': Divide(),
+}
 
-    try:
-        a_decimal = Decimal(a)
-        b_decimal = Decimal(b)
-        
-        # Normalize operation input to handle both symbols and text
-        operation_input = operation_input.strip().lower()
-        operation = operation_mappings.get(operation_input)
+class Calculator:
+    def __init__(self):
+        self.supported_operations = list(operation_mappings.keys())
 
-        if operation is None:
-            print(f"Unknown operation: {operation_input}")
-            return
-
-        result = CalculatorService.perform_operation(operation, a_decimal, b_decimal)
-        print(f"The result of {a} {operation_input} {b} is equal to {result}")
-
-    except InvalidOperation:
-        print(f"Invalid number input: {a} or {b} is not a valid number.")
-    except ZeroDivisionError:
-        print("An error occurred: Cannot divide by zero.")
-    except Exception as e:
-        print(f"An error occurred: {e}")
-
-def parse_user_input(user_input: str):
-    # This regex now also captures non-numeric and textual operations
-    parts = re.findall(r'([^ ]+)\s*([^ ]+)\s*([^ ]+)', user_input)
-    if parts:
-        return parts[0]
-    raise ValueError("Invalid input format. Please use the format: <number> <operation> <number>.")
-
-
-if __name__ == "__main__":
-    print("Welcome to Calculator! Type 'exit' to quit.")
-    
-    while True:
-        user_input = input("Enter calculation (e.g., '5 + 3' or '5 add 3'): ").strip()
-        if user_input.lower() == 'exit':
-            print("Exiting Calculator. Goodbye!")
-            break
-        
+    def calculate(self, a, operation_input, b):
+        """Perform calculation and return a float result."""
         try:
-            a, operation, b = parse_user_input(user_input)
-            # Normalize operation to handle both textual and symbol inputs
-            operation_normalized = 'add' if operation == '+' else 'subtract' if operation == '-' else 'multiply' if operation == '*' else 'divide' if operation == '/' else operation
-            calculate_and_print(a, b, operation_normalized)
+            a_decimal = Decimal(a)
+            b_decimal = Decimal(b)
+            operation_key = operation_input.strip().lower()
+
+            if operation_key not in operation_mappings:
+                raise ValueError(f"Unknown operation: {operation_input}")
+
+            operation = operation_mappings[operation_key]
+
+            if operation_key == 'divide' and b_decimal == 0:
+                raise ValueError("Cannot divide by zero")
+
+            result = CalculatorService.perform_operation(operation, a_decimal, b_decimal)
+            return float(result)  # Keep float for test compatibility
+
+        except InvalidOperation:
+            raise ValueError(f"Invalid number input: {a} or {b} is not a valid number.")
+
+def main():
+    print("Calculator is running. Type 'exit' to quit.")
+    print(f"Supported operations: {', '.join(Calculator().supported_operations)}")
+
+    while True:
+        user_input = input("Enter calculation (e.g., 5 add 3): ").strip()
+        if user_input.lower() == 'exit':
+            break
+
+        try:
+            a, operation_input, b = user_input.split()
+            calculator = Calculator()  # Create a calculator for each calculation
+            result = calculator.calculate(a, operation_input, b)
+            print(f"The result of {a} {operation_input} {b} is equal to {result}")
+
         except ValueError as e:
-            print(f"{e} Example: 5 * 3 or 5 multiply 3")
-        except Exception as e:
-            print(f"An error occurred: {e}")
+            print(f"Error: {e}")
+
+        except IndexError: 
+            print("Error: Please enter your input in the format '<number1> <operation> <number2>'.")
+
+        except Exception as e:  # Catch-all for unexpected issues
+            print(f"An unexpected error occurred: {e}") 
+
+if __name__ == '__main__':
+    main()

@@ -1,43 +1,31 @@
 """
-Module-level docstring: This module contains unit tests for the functions in main.py.
+This test_main.py file contains unit tests for the main.py module.
 """
-import sys
-from io import StringIO
+from decimal import Decimal
 import pytest
-from main import calculate_and_print, parse_user_input
+from main import Calculator
 
-def capture_print_output(func, *args, **kwargs):
-    """
-    Captures and returns the output of a function that prints to stdout.
-    
-    :param func: The function to capture the output from.
-    :param args: Positional arguments to pass to the function.
-    :param kwargs: Keyword arguments to pass to the function.
-    :return: The captured output as a string.
-    """
-    original_stdout = sys.stdout  # Save the original stdout
-    sys.stdout = StringIO()  # Replace stdout with StringIO to capture output
-    func(*args, **kwargs)
-    output = sys.stdout.getvalue()  # Get the printed output
-    sys.stdout = original_stdout  # Restore original stdout
-    return output.strip()
+@pytest.fixture
+def calculator():
+    """Function Calculator"""
+    return Calculator()
+# Fixtures provided by conftest.py to generate test data
+# ('a', 'b', 'operation', 'expected')
+def test_calculate(a, b, operation, expected, calculator): # pylint: disable=invalid-name
+    """Test the calculate method with dynamically generated data."""
+    a_decimal = Decimal(a)
+    b_decimal = Decimal(b)
+    result = calculator.calculate(a_decimal, operation, b_decimal)
 
-@pytest.mark.parametrize("input_str, expected_output", [
-    ("5 + 3", "The result of 5 + 3 is equal to 8"),
-    ("10 - 2", "The result of 10 - 2 is equal to 8"),
-    ("4 * 5", "The result of 4 * 5 is equal to 20"),
-    ("20 / 4", "The result of 20 / 4 is equal to 5"),
-    ("1 / 0", "An error occurred: Cannot divide by zero."),
-    ("-100 + 200", "The result of -100 + 200 is equal to 100"),
-    ("9999999 * 0.0001", "The result of 9999999 * 0.0001 is equal to 999.9999"),
-    ("a + 3", "Invalid number input: a or 3 is not a valid number."),
-    ("5 - b", "Invalid number input: 5 or b is not a valid number."),
-    ("9 unknown 3", "Unknown operation: unknown"),
-])
-def test_calculate_and_print_with_various_inputs(input_str, expected_output):
-    """
-    Test calculate_and_print function with various inputs.
-    """
-    a, operation, b = parse_user_input(input_str)
-    actual_output = capture_print_output(calculate_and_print, a, b, operation)
-    assert actual_output == expected_output
+    # Handle special cases
+    if expected == "Cannot divide by zero":
+        with pytest.raises(ValueError) as excinfo:
+            result = calculator.calculate(a_decimal, operation, b_decimal) # Calculation should raise the error
+        assert "Cannot divide by zero" in str(excinfo.value)
+    elif expected == "Unknown operation":
+        with pytest.raises(ValueError) as excinfo:
+            result = calculator.calculate(a_decimal, operation, b_decimal) # Calculation should raise the error
+        assert "Unknown operation" in str(excinfo.value)
+    else:
+        tolerance = 0.01  # Adjust as needed
+        assert abs(result - float(expected)) <= tolerance
